@@ -3,7 +3,6 @@
 local fn = vim.fn
 local cmd = vim.cmd
 local com = vim.api.nvim_command
-local exec = vim.api.nvim_exec
 local g = vim.g
 local vim = vim
 
@@ -60,6 +59,10 @@ use {
   'junegunn/fzf.vim',
   after = 'junegunn/fzf',
   config = function()
+    cmd([[
+      let $FZF_DEFAULT_COMMAND='fd --type f --hidden --follow --exclude .git --exclude plugged'
+      let $FZF_PREVIEW_COMMAND = 'bat --color=always --style=plain -n -- {} || cat {}'
+    ]])
     map('n', '<c-p>', ':Files<CR>')
     map('n', '<bs>', ':Buffers<CR>')
   end
@@ -89,6 +92,16 @@ use {
     g.ale_echo_msg_format = '%s'
     map('n', '[a', '<Plug>(ale_previous_wrap)', {noremap = false})
     map('n', ']a', '<Plug>(ale_next_wrap)', {noremap = false})
+    g.ale_fixers = {
+      css = 'prettier',
+      javascript = 'eslint',
+      typescript = 'tslint',
+      json = 'prettier',
+      scss = 'prettier',
+      yml = 'prettier',
+      html = 'eslint',
+      rust = 'rustfmt'
+    }
   end
 }
 use 'nathunsmitty/nvim-ale-diagnostic'
@@ -100,8 +113,11 @@ use {
     local lspconfig = require('lspconfig')
     local on_attach = function()
       require('nvim-ale-diagnostic')
-      vim.lsp.handlers['textDocument/publishDiagnostics'] =
-          vim.lsp.with(vim.lsp.diagnostic.on_publish_diagnostics, {
+      vim.lsp.handlers['textDocument/publishDiagnostics'] = vim.lsp.with(
+                                                                vim.lsp
+                                                                    .diagnostic
+                                                                    .on_publish_diagnostics,
+                                                                {
             underline = false,
             virtual_text = false,
             signs = true,
@@ -142,41 +158,57 @@ use 'LnL7/vim-nix'
 
 -- formatter
 use {
+  'mhartington/formatter.nvim',
   after = 'basilgood/barow',
-  'lukas-reineke/format.nvim',
   config = function()
-    require'format'.setup {
-      ['*'] = {{cmd = {'sed -i \'s/[ \t]*$//\''}}},
-      lua = {
-        {
-          cmd = {
-            'lua-format -i --tab-width=2 --indent-width=2 --double-quote-to-single-quote'
-          }
-        }
-      },
-      nix = {cmd = {'nixpkgs-fmt -'}},
-      javascript = {
-        {
-          cmd = {
-            'prettier -w --single-quote --trailing-comma none --arrow-parens avoid',
-            './node_modules/.bin/eslint --fix'
-          }
-        }
-      },
-      markdown = {
-        {cmd = {'prettier -w'}}, {
-          cmd = {'black'},
-          start_pattern = '^```javascript$',
-          end_pattern = '^```$',
-          target = 'current'
+    require('formatter').setup({
+      logging = false,
+      filetype = {
+        javascript = {
+          -- prettier
+          function()
+            return {
+              exe = 'prettier',
+              args = {
+                '--stdin-filepath', vim.api.nvim_buf_get_name(0),
+                '--single-quote', '--trailing-comma', 'none', '--arrow-parens',
+                'avoid'
+              },
+              stdin = true
+            }
+          end
+        },
+        nix = {
+          -- nixpkgs-fmt
+          function() return {exe = 'nixpkgs-fmt', stdin = true} end
+        },
+        lua = {
+          -- luafmt
+          function()
+            return {
+              exe = 'lua-format',
+              args = {
+                '--indent-width', 2, '--tab-width', 2,
+                '--double-quote-to-single-quote'
+              },
+              stdin = true
+            }
+          end
         }
       }
-    }
+    })
   end
 }
 
 -- git
-use 'tpope/vim-fugitive'
+use {
+  'tpope/vim-fugitive',
+  config = function()
+    map('n', 'gs', ':tab G<cr>')
+    cmd 'autocmd FileType fugitive nnoremap <buffer> gpp :G push<cr>'
+    cmd 'autocmd FileType fugitive nnoremap <buffer> gpf :G push -f<cr>'
+  end
+}
 use {
   'airblade/vim-gitgutter',
   config = function()
@@ -195,17 +227,20 @@ use 'junegunn/gv.vim'
 -- misc
 use 'editorconfig/editorconfig-vim'
 use 'basilgood/vim-system-copy'
-use 'basilgood/smarttab.vim'
 use 'kevinhwang91/nvim-bqf'
 use 'wellle/targets.vim'
 use 'michaeljsmith/vim-indent-object'
 use 'tpope/vim-surround'
 use 'tpope/vim-repeat'
 use {
+  'windwp/nvim-autopairs',
+  config = function() require('nvim-autopairs').setup() end
+}
+use {
   'terrortylor/nvim-comment',
   config = function() require('nvim_comment').setup({comment_empty = false}) end
 }
-use 'romainl/vim-cool'
+use 'pgdouyon/vim-evanesco'
 use 'sgur/cmdline-completion'
 use {
   'haya14busa/vim-asterisk',
@@ -230,7 +265,14 @@ use {
   'romgrk/winteract.vim',
   config = function() map('n', 'gw', '<cmd>InteractiveWindow<CR>') end
 }
-use 'hauleth/asyncdo.vim'
+use {
+  'mileszs/ack.vim',
+  config = function()
+    g.ackprg = 'rg --vimgrep'
+    g.ackhighlight = 1
+    map('c', 'Ack', 'Ack!')
+  end
+}
 use {
   'norcalli/nvim-colorizer.lua',
   after = 'basilgood/tokyodark.nvim',
@@ -263,8 +305,8 @@ opt('o', 'showbreak', 'string.rep(" ", 3)')
 opt('w', 'breakindent', true)
 opt('w', 'breakindentopt', 'sbr')
 opt('o', 'mouse', 'a')
-opt('o', 'grepprg', 'rg --vimgrep')
-opt('o', 'grepformat', '%f:%l:%c:%m')
+-- opt('o', 'grepprg', 'rg --vimgrep')
+-- opt('o', 'grepformat', '%f:%l:%c:%m')
 opt('o', 'incsearch', true)
 opt('o', 'completeopt', 'menuone,noinsert,noselect')
 opt('o', 'shortmess', 'aoOTIcF')
@@ -336,8 +378,9 @@ map('c', '<c-x>m', [[<CR>:m''<CR>]])
 map('c', '<c-x>d', [[<CR>:d<CR>``]])
 
 -- autocommands
-cmd 'autocmd TextYankPost * lua vim.highlight.on_yank {higroup = "IncSearch", timeout = 500}'
-cmd [[autocmd BufReadPost * if line("'\"") >= 1 && line("'\"") <= line("$") && &ft !~# 'commit' | exe "normal! g`\"" | endif]]
+cmd 'autocmd TextYankPost * lua vim.highlight.on_yank {higroup = "Search", timeout = 300}'
+cmd([[autocmd BufReadPost * if line("'\"") >= 1 && line("'\"") <= line("$")]] ..
+        [[&& &ft !~# 'commit' | exe "normal! g`\"" | endif]])
 cmd 'autocmd FileType qf wincmd J'
 cmd 'autocmd BufWinEnter * if &ft == "help" | wincmd J | end'
 cmd 'autocmd InsertLeave * if &l:diff | diffupdate | endif'
@@ -356,7 +399,6 @@ cmd 'autocmd TermOpen * if &buftype ==# "terminal" | startinsert | endif'
 cmd 'autocmd BufLeave term://* stopinsert'
 cmd [[autocmd TermClose term://* if (expand('<afile>') !~ "fzf") | call nvim_input('<CR>') | endif]]
 cmd 'autocmd Filetype * if &omnifunc == "" | setlocal omnifunc=syntaxcomplete#Complete | endif'
-cmd 'autocmd QuickFixCmdPost [^l]* copen'
 
 -- sessions
 if fn.empty(fn.glob('~/.cache/sessions')) > 0 then
@@ -374,13 +416,6 @@ com([[command! -nargs=0 WT %s/[^\t]\zs\t\+/ / | normal! ``]])
 com([[command! -bar HL echo synIDattr(synID(line('.'),col('.'),0),'name')]] ..
         [[synIDattr(synIDtrans(synID(line('.'),col('.'),1)),'name')]])
 com([[command! WW w !sudo tee % > /dev/null]])
-com(
-    [[command! -bang -nargs=* -complete=file Make call asyncdo#run(1, &makeprg, <f-args>)]])
-com(
-    [[command! -bang -nargs=* -complete=file LMake call asyncdo#lrun(1, &makeprg, <f-args>)]])
-com([[command! -bang -nargs=+ -complete=file ]] ..
-        [[Grep call asyncdo#run(1, {'job': &grepprg, 'errorformat': &grepformat}, <f-args>) ]] ..
-        [[| let @/=split("<args>")[0] | call feedkeys(":let &hlsearch=1\<CR>", "n")]])
 
 -- clean packages
 cmd 'autocmd VimLeavePre * lua require"user".clean()'
