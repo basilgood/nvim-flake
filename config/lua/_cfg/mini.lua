@@ -1,0 +1,5 @@
+require('mini.statusline').setup()
+require('mini.indentscope').setup({ draw = { delay = 2000 }, symbol = '│' })
+vim.keymap.set('n', '<c-w>d', function()
+  require('mini.bufremove').delete(0, false)
+end)
